@@ -24,8 +24,10 @@ f<-system.file(paste(testr_dir, "9999.Bmp", sep="/"))
 img <- read.bitmap(paste(testr_dir, "9999.Bmp", sep="/"))
 
 grayscale<-function(image){
-  return(apply(image, 3, sum))
+  return(apply(image,  c(1, 2), sum))
 }
+
+
 
 
 test<-read.table(paste(folder_path, "/test.tsv", sep = ""), sep = "\t", header = T)
