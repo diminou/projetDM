@@ -3,8 +3,12 @@ library(compiler)
 install.packages("tiff")
 install.packages("mgcv")
 install.packages("spatial")
+install.packages("ROCR")
+install.packages("readbitmap")
 source("http://bioconductor.org/biocLite.R")
 biocLite("EBImage")
+library(EBImage)
+library(readbitmap)
 
 folder_path <- paste(getwd(), "/kaggle/Julia_char", sep = "")
 
@@ -15,6 +19,14 @@ filepath<-function(filename){
 testr_dir<-filepath("testResized")
 trainr_dir<-filepath("trainResized")
 labels<-read.csv(filepath("trainLabels.csv"))
+
+f<-system.file(paste(testr_dir, "9999.Bmp", sep="/"))
+img <- read.bitmap(paste(testr_dir, "9999.Bmp", sep="/"))
+
+grayscale<-function(image){
+  return(apply(image, 3, sum))
+}
+
 
 test<-read.table(paste(folder_path, "/test.tsv", sep = ""), sep = "\t", header = T)
 train<-read.table(paste(folder_path, "/train.tsv", sep = ""), sep = "\t", header = T)
