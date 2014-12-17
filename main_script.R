@@ -6,11 +6,15 @@ install.packages("spatial")
 source("http://bioconductor.org/biocLite.R")
 biocLite("EBImage")
 
-folder_path <- "$HOME/kaggle/Julia_char"
+folder_path <- paste(getwd(), "/kaggle/Julia_char", sep = "")
 
 filepath<-function(filename){
   return (paste(folder_path, filename, sep = "/"))
 }
+
+testr_dir<-filepath("testResized")
+trainr_dir<-filepath("trainResized")
+labels<-read.csv(filepath("trainLabels.csv"))
 
 test<-read.table(paste(folder_path, "/test.tsv", sep = ""), sep = "\t", header = T)
 train<-read.table(paste(folder_path, "/train.tsv", sep = ""), sep = "\t", header = T)
