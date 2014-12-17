@@ -1,7 +1,12 @@
 # Projet Data Mining
 library(compiler)
+install.packages("tiff")
+install.packages("mgcv")
+install.packages("spatial")
+source("http://bioconductor.org/biocLite.R")
+biocLite("EBImage")
 
-folder_path <- "~/kaggle/Sentiment_analysis"
+folder_path <- "$HOME/kaggle/Julia_char"
 
 filepath<-function(filename){
   return (paste(folder_path, filename, sep = "/"))
