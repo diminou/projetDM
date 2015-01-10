@@ -17,6 +17,14 @@ labels<-read.csv(filepath("trainLabels.csv"))
 f<-system.file(paste(testr_dir, "9999.Bmp", sep="/"))
 img <- read.bitmap(paste(testr_dir, "9999.Bmp", sep="/"))
 
-grayscale<-function(image){
+grayscale<-cmpfun(function(image){
   return(apply(image,  c(1, 2), sum))
-}
+})
+
+gray<-grayscale(img)
+
+unroll<-cmpfun(function(gray_img){
+  return(c(gray_img))
+})
+length(dir(testr_dir))
+dim(labels)
