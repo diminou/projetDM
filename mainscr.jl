@@ -4,6 +4,7 @@ Pkg.add("Images")
 Pkg.add("DataFrames")
 
 
+
 using Images
 using DataFrames
 using Color
@@ -57,7 +58,7 @@ end
 
 
 xTrain = read_data("$(path)/trainResized", labelsInfoTrain, 400)
-yTrain = labelsInfoTrain[Class]
+yTrain = labelsInfoTrain["Class"]
 yTrain = map(x -> x[1], yTrain)
 yTrain = int(yTrain)
 
