@@ -1,14 +1,17 @@
-addprocs(CPU_CORES-1) # ajout de plusieurs coeurs
+addprocs(CPU_CORES-2) # ajout de plusieurs coeurs
 Pkg.add("DecisionTree")
 Pkg.add("Images")
 Pkg.add("DataFrames")
-
+Pkg.add("BackpropNeuralNet")
+Pkg.add("XGBoost")
 
 
 using Images
-using DataFrames
 using Color
+using DataFrames
 using DecisionTree
+using BackpropNeuralNet
+using XGBoost
 
 #image de test
 img = imread("/home/divanov/kaggle/Julia_char/trainResized/1.Bmp")
@@ -23,31 +26,58 @@ end
 
 #Conversion en NB
 function convert_to_grayscale(img)
-#  temp = float64sc(img)
-#  if ndims (temp) == 3
-#    temp2 = mean(temp.data, 1)
-#  else
-#    temp2 = temp.data
-#  end
-#  return temp2
   temp = reinterpret(Float32, float32(img))
   temp = convert(Image{Gray}, temp)
   temp = convert(Array{Gray}, temp)
   temp = convert(Array{Float32}, temp)
+  if((mean(temp[1:19,1])+mean(temp[20,1:19])+mean(temp[2:20,20])+mean(temp[1,2:20]))/4>mean(temp))
+    temp=1-temp
+  end
   return(temp)
 end
 
+# Sampling data :
+function getOccurrences(levels,y)
+  occurrence = zeros(1,length(levels))
+  for(i) in levels
+    occ=find(x->(x == i), y)
+    occurrence[find(x->(x==i),levels)]=length(occ)
+  end
+  return int(occurrence)
+end
+
+function getSample(y,lengthSample,nbOccMin)
+  levels=unique(y)
+  occurrence=zeros(1,length(levels))
+  length(find(x->(x<nbOccMin),occurrence))
+  sample=rand(1:length(y),lengthSample)
+  while(length(find(x->(x<nbOccMin),occurrence))>0)
+    sample=rand(1:length(y),lengthSample)
+    ySample=y[sample]
+    occurrence=getOccurrences(levels,ySample)
+  end
+  return(sample)
+end
+
+#sampleTrain=getSample(y,4000,2)
+#xTrain=x[sampleTrain,1:400]
+#yTrain=labelsInfoTrain[sampleTrain,:Class]
+
+#sampleTrain=getSample(y,4000,2)
+#xTrain=x[sampleTrain,1:400]
+#yTrain=labelsInfoTrain[sampleTrain,:Class]
 
 path = "/home/divanov/kaggle/Julia_char"
 
 # Les labels / classes
 labelsInfoTrain = readtable("$(path)/trainLabels.csv")
 
+
 # Lecture et transformation des donnees
 function read_data(path, labelsInfo, imageSize)
   #initialising x matrix
   x= zeros(size(labelsInfo, 1), imageSize)
-  for(index, idImage) in enumerate(labelsInfo["ID"])
+  for(index, idImage) in enumerate(labelsInfo[:ID])
     nameFile = "$(path)/$(idImage).Bmp"
     img = imread(nameFile)
     temp = convert_to_grayscale(img)
@@ -58,14 +88,77 @@ end
 
 
 xTrain = read_data("$(path)/trainResized", labelsInfoTrain, 400)
-yTrain = labelsInfoTrain["Class"]
+yTrain = labelsInfoTrain[:Class]
 yTrain = map(x -> x[1], yTrain)
 yTrain = int(yTrain)
 
-#model = build_forest(yTrain, xTrain, 20, 100, 0.5)
-#predTrain = apply_forest(model, xTrain)
-#predTrain = int(predTrain)
-#predTrain - yTrain
+
+labelsInfoTest = readtable("$(path)/sampleSubmission.csv")
+xTest = read_data("$(path)/testResized", labelsInfoTest, 400)
+xTrainT = xTrain[1:5000, :]
+yTrainT = yTrain[1:5000]
+length(unique(yTrainT)) #62, donc, on peut utiliser xTrainT, yTrainT comme sous-echantillon d'apprentissage
+
+xTrainE = xTrain[5001:end, :]
+yTrainE = yTrain[5001:end]
+length(unique(yTrainE)) #62, donc, tous les caracteres sont representes dans l'echantillon d'evaluation
+
+model = build_forest(yTrain, xTrain, 30, 700, 1)
+
+predTest = apply_forest(model, xTest)
+
+labelsInfoTest[:Class] = map(x -> string(char(x)), predTest)
+writetable("$(path)/forestSubmission2.csv", labelsInfoTest, separator = ',', header = true)
+
+
+param = ["max_depth"=>2, "eta"=>1, "objective"=>"multi:sotmax"]
+num_round = 1000;
+num_class = 62;
+
+minimum(yTrainT)
+maximum(yTrainT)
+print(sort(unique(yTrainT)))
+
+function homogenize(x::Int64)
+  if(x>=97)
+    x = x - 6
+  end
+  if(x>=65)
+    x = x - 7
+  end
+  x = x - 48
+  return(x)
+end
+
+function heterogenize(x::Int64)
+  x = x + 48
+  if(x>57)
+    x = x+7
+  end
+  if(x>90)
+    x = x+6
+  end
+  return(x)
+end
+
+homogenize(heterogenize(2))
+heterogenize(homogenize(50))
+
+yTrainT2 = map(x -> homogenize(x), yTrainT)
+print(sort(unique(yTrainT2)))
+bst = xgboost(xTrainT, num_round, label = yTrainT2, eta=0.1, max_depth=2, subsample = 0.5, num_class = num_class, objective="multi:softmax")
+preds = predict(bst, xTrainE)
+preds = int64(preds)
+preds = map(x -> heterogenize(x), preds)
+
+
+yTrainE
+
+net = init_network([400, 500, 62])
+
+train(net, xTrainT, yTrainT)
+predNet = net_eval(net, xTrainE)
+
 
 #Je ne sais plus a quoi servaient les fonctions unitarise, misses et error
 unitarise = function(x::Integer)
@@ -86,11 +179,21 @@ error = function(vector1, vector2)
   return(misses(vector1, vector2)/length(vector1))
 end
 
-#misses(predTrain, yTrain)
-#error(predTrain, yTrain)
+misses(preds, yTrainE)
 
-#accuracy = nfoldCV_forest(yTrain, xTrain, 20, 150, 5, 1);
-#println(mean(accuracy));
+yTrain2 = map(x -> homogenize(x), yTrain)
+bst = xgboost(xTrain, num_round, label = yTrain2, eta=0.1, max_depth=2, subsample = 0.5, num_class = num_class, objective="multi:softmax")
+preds = predict(bst, xTest)
+preds = int64(preds)
+preds = map(x -> heterogenize(x), preds)
+
+labelsInfoTest[:Class] = map(x -> string(char(x)), preds)
+writetable("$(path)/gbmSubmission.csv", labelsInfoTest, separator = ',', header = true)
+
+
+accuracy = nfoldCV_forest(yTrain, xTrain, 10, 700, 3, 0.1);
+println(mean(accuracy));
+print(typeof(accuracy))
 
 #addprocs(CPU_CORES-1)
 #nprocs()
@@ -200,3 +303,6 @@ function swarm_evolve(s::Swarm, perf::Function)
     s.best_position = bp.best_position
   end
 end
+
+
+
